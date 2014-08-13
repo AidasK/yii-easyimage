@@ -243,29 +243,28 @@ class EasyImage extends CApplicationComponent
     }
 
     /**
-     * This method returns the URL to the cached thumbnail.
+     * This method returns relative path to the cached thumbnail.
      * @param string $file path
      * @param array $params
-     * @return string URL path
+     * @return string relative path
      */
-    public function thumbSrcOf($file, $params = array())
+    public function thumbRelativePathOf($file, $params = array())
     {
-        // Paths
-        $hash = md5($file . serialize($params));
-        $cachePath = Yii::getpathOfAlias('webroot') . $this->cachePath . $hash{0};
-        $cacheFileExt = isset($params['type']) ? $params['type'] : pathinfo($file, PATHINFO_EXTENSION);
-        $cacheFileName = $hash . '.' . $cacheFileExt;
-        $cacheFile = $cachePath . DIRECTORY_SEPARATOR . $cacheFileName;
-        $webCacheFile = Yii::app()->baseUrl . $this->cachePath . $hash{0} . '/' . $cacheFileName;
+        $hash = $this->createHash($file, $params);
+        $cacheFileExt = $this->getFileExtension($file, $params);
+        $relativeFilePath = $this->getRelativeFilePath($hash, $cacheFileExt);
+        $cachePath = $this->getCachePath();
+        $cacheFile = $cachePath . $relativeFilePath;
 
         // Return URL to the cache image
         if (file_exists($cacheFile) && (time() - filemtime($cacheFile) < $this->cacheTime)) {
-            return $webCacheFile;
+            return $cacheFile;
         }
 
         // Make cache dir
-        if (!is_dir($cachePath)) {
-            mkdir($cachePath, 0755, true);
+        $cacheFileDir = dirname($cacheFile);
+        if (!is_dir($cacheFileDir)) {
+            mkdir($cacheFileDir, 0755, true);
         }
 
         // Create and caching thumbnail use params
@@ -289,8 +288,29 @@ class EasyImage extends CApplicationComponent
                 $this->_doThumbOf($file, $retinaFile, $params);
             }
         }
+        return $relativeFilePath;
+    }
 
-        return $webCacheFile;
+    /**
+     * This method returns path to the cached thumbnail.
+     * @param string $file path
+     * @param array $params
+     * @return string URL path
+     */
+    public function thumbPathOf($file, $params = array())
+    {
+        return $this->getCachePath() . $this->thumbRelativePathOf($file, $params);
+    }
+
+    /**
+     * This method returns the URL to the cached thumbnail.
+     * @param string $file path
+     * @param array $params
+     * @return string URL path
+     */
+    public function thumbSrcOf($file, $params = array())
+    {
+        return $this->getCacheUrl() . $this->thumbRelativePathOf($file, $params);
     }
 
     /**
@@ -350,7 +370,7 @@ class EasyImage extends CApplicationComponent
         if ($watermark instanceof EasyImage) {
             $watermark = $watermark->image();
         } elseif (is_string($watermark)) {
-            $watermark = Image::factory(Yii::getpathOfAlias('webroot') . $watermark);
+            $watermark = Image::factory($this->getCachePath() . $watermark);
         }
         return $this->image()->watermark($watermark, $offset_x, $offset_y, $opacity);
     }
@@ -368,6 +388,53 @@ class EasyImage extends CApplicationComponent
     public function render($type = NULL, $quality = 100)
     {
         return $this->image()->render($type, $quality);
+    }
+
+    /**
+     * @param $file
+     * @param $params
+     * @return string
+     */
+    public function createHash($file, $params)
+    {
+        return md5($file . serialize($params));
+    }
+
+    /**
+     * @return string
+     */
+    public function getCachePath()
+    {
+        return Yii::getpathOfAlias('webroot') . $this->cachePath;
+    }
+
+    /**
+     * @param $file
+     * @param $params
+     * @return mixed
+     */
+    public function getFileExtension($file, $params)
+    {
+        return isset($params['type']) ? $params['type'] : pathinfo($file, PATHINFO_EXTENSION);
+    }
+
+    /**
+     * @return string
+     */
+    public function getCacheUrl()
+    {
+        return Yii::app()->baseUrl . $this->cachePath;
+    }
+
+    /**
+     * @param $hash
+     * @param $cacheFileExt
+     * @return string
+     */
+    public function getRelativeFilePath($hash, $cacheFileExt)
+    {
+        $cacheFileName = $hash . '.' . $cacheFileExt;
+        return $hash{0} . '/' . $cacheFileName;
     }
 
 }
